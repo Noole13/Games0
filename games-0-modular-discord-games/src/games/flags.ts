@@ -108,28 +108,23 @@ function createQuestionEmbed(question: ChoiceQuestion, seconds: number) {
 export async function runFlagsGame(
   interaction: StringSelectMenuInteraction
 ): Promise<void> {
-  // تأجيل التفاعل لمنع خطأ InteractionNotReplied
-  await interaction.deferUpdate();
-
   const question = pickQuestion();
   const seconds = 30;
 
   if (!question) {
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(COLORS.ERROR)
-          .setTitle("خطأ")
-          .setDescription("لا توجد أسئلة أعلام متاحة حالياً."),
-      ],
+    await interaction.update({
+      content: "لا توجد أسئلة أعلام متاحة حالياً.",
+      embeds: [],
       components: [],
     });
     return;
   }
 
-  const roundMessage = await interaction.editReply({
+  // تحديث رسالة القائمة فوراً وعرض السؤال دون أي تأخير مع جلب كائن الرسالة
+  const roundMessage = await interaction.update({
     embeds: [createQuestionEmbed(question, seconds)],
     components: [],
+    fetchReply: true,
   });
 
   const acceptedAnswers = getAllAcceptedAnswers(
