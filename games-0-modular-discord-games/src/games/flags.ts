@@ -108,6 +108,9 @@ function createQuestionEmbed(question: ChoiceQuestion, seconds: number) {
 export async function runFlagsGame(
   interaction: StringSelectMenuInteraction
 ): Promise<void> {
+  // تأجيل التفاعل لمنع خطأ InteractionNotReplied
+  await interaction.deferUpdate();
+
   const question = pickQuestion();
   const seconds = 30;
 
