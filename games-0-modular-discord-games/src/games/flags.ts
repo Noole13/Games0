@@ -101,15 +101,13 @@ function createQuestionEmbed(question: ChoiceQuestion, seconds: number) {
 }
 
 /**
- * تشغيل جولة الأعلام.
- * المستمع محصور في القناة الحالية ويُهمل رسائل البوت،
- * مع تطبيع الإجابة العربية قبل المقارنة.
+ * تشغيل جولة الأعلام (ضبط الوقت على 15 ثانية).
  */
 export async function runFlagsGame(
   interaction: StringSelectMenuInteraction
 ): Promise<void> {
   const question = pickQuestion();
-  const seconds = 30;
+  const seconds = 15; // تم تعديل الوقت هنا إلى 15 ثانية
 
   if (!question) {
     await interaction.update({
@@ -121,10 +119,9 @@ export async function runFlagsGame(
   }
 
   // تحديث رسالة القائمة فوراً وعرض السؤال دون أي تأخير مع جلب كائن الرسالة
-  const roundMessage = await interaction.update({
+  await interaction.update({
     embeds: [createQuestionEmbed(question, seconds)],
     components: [],
-    fetchReply: true,
   });
 
   const acceptedAnswers = getAllAcceptedAnswers(
@@ -133,7 +130,7 @@ export async function runFlagsGame(
     FLAG_ANSWER_MAP
   );
 
-const winner = await waitForChannelMessage(
+  const winner = await waitForChannelMessage(
     interaction.channel!,
     (message: Message) => {
       if (message.author.bot) {
