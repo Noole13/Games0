@@ -1,15 +1,5 @@
 /**
  * تنظيف النص العربي قبل المقارنة.
- *
- * يدعم:
- * - إزالة التشكيل
- * - توحيد أ / إ / آ -> ا
- * - توحيد ة -> ه
- * - توحيد ى -> ي
- * - إزالة التطويل
- * - إزالة المسافات والرموز
- * - تحويل الأحرف إلى lowercase
- * - توحيد بعض أشكال الهمزة
  */
 export function normalizeArabic(text: unknown): string {
   if (text === null || text === undefined) {
@@ -17,9 +7,10 @@ export function normalizeArabic(text: unknown): string {
   }
 
   return String(text)
+    .trim()
     .normalize("NFKC")
-    .toLocaleLowerCase("ar")
-    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "") // إزالة التشكيل والتطويل
     .replace(/[إأآٱ]/g, "ا")
     .replace(/ة/g, "ه")
     .replace(/ى/g, "ي")
@@ -29,7 +20,7 @@ export function normalizeArabic(text: unknown): string {
     .replace(/[٠-٩]/g, (char) =>
       String("٠١٢٣٤٥٦٧٨٩".indexOf(char))
     )
-    .replace(/[^\p{L}\p{N}]/gu, "");
+    .replace(/\s+/g, " "); // توحيد المسافات
 }
 
 /**
@@ -47,11 +38,11 @@ export function isCorrectAnswer(
 
   if (Array.isArray(correctAnswer)) {
     return correctAnswer.some(
-      (answer) => user === normalizeArabic(answer)
+      (answer) => user === answer || user === normalizeArabic(answer)
     );
   }
 
-  return user === normalizeArabic(correctAnswer);
+  return user === correctAnswer || user === normalizeArabic(correctAnswer);
 }
 
 /**
@@ -64,19 +55,16 @@ export function getAllAcceptedAnswers(
 ): string[] {
   const answerValue = answer ?? "";
 
-  if (Array.isArray(answerValue)) {
-    return answerValue.map(normalizeArabic);
-  }
-
-  if (gameType === "flags" && flagAnswerMap) {
-    return (flagAnswerMap[answerValue] ?? [answerValue]).map(
-      normalizeArabic
-    );
-  }
+  let rawAnswers: string[] = [];
 
   if (Array.isArray(answerValue)) {
-    return answerValue.map(normalizeArabic);
+    rawAnswers = answerValue;
+  } else if (gameType === "flags" && flagAnswerMap && flagAnswerMap[answerValue]) {
+    rawAnswers = flagAnswerMap[answerValue];
+  } else {
+    rawAnswers = [String(answerValue)];
   }
 
-  return [normalizeArabic(answerValue)];
+  // إرجاع الإجابات مطبعة وجاهزة للمقارنة المباشرة
+  return rawAnswers.map(normalizeArabic);
 }
