@@ -3,7 +3,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
-  ChannelSelectMenuBuilder,
   Message,
 } from "discord.js";
 import type { StringSelectMenuInteraction, ChatInputCommandInteraction } from "discord.js";
@@ -61,51 +60,42 @@ export function getUserName(
 }
 
 /**
- * التأكد أن العنصر Channel يدعم awaitMessages.
- */
-export function isMessagableChannel(
-  channel: unknown
-): channel is { awaitMessages: Function } {
-  return (
-    typeof channel === "object" &&
-    channel !== null &&
-    "awaitMessages" in channel &&
-    typeof (channel as any).awaitMessages === "function"
-  );
-}
-
-/**
- * انتظار رسالة من القناة.
- */
-/**
- * انتظار رسالة من القناة.
+ * انتظار رسالة من القناة باستخدام حدث الرسائل العام (مضمون 100% في ديسكورد v14).
  */
 export async function waitForChannelMessage(
   channel: any,
   filter: (msg: Message) => boolean,
   timeout: number
 ): Promise<Message | undefined> {
-  if (!channel || typeof channel.awaitMessages !== "function") {
+  const client = channel.client;
+  if (!client) {
     return undefined;
   }
 
-  try {
-    const messages = await channel.awaitMessages({
-      filter,
-      max: 1,
-      time: timeout,
-      errors: ["time"],
-    });
+  return new Promise((resolve) => {
+    let timer: NodeJS.Timeout;
 
-    return messages.first();
-  } catch (collected: any) {
-    // في حال انتهى الوقت ولم يرسل أحد شيئاً، تُطلق discord.js خطأ يتم التقاطه هنا وإرجاع undefined بشكل طبيعي
-    if (collected && typeof collected.first === "function") {
-      return collected.first();
-    }
-    return undefined;
-  }
+    const listener = (message: Message) => {
+      // التأكد أن الرسالة في نفس القناة وليست من البوت
+      if (message.channelId !== channel.id) return;
+      if (message.author.bot) return;
+
+      if (filter(message)) {
+        clearTimeout(timer);
+        client.off("messageCreate", listener);
+        resolve(message);
+      }
+    };
+
+    client.on("messageCreate", listener);
+
+    timer = setTimeout(() => {
+      client.off("messageCreate", listener);
+      resolve(undefined);
+    }, timeout);
+  });
 }
+
 /**
  * أزرار الاستمرار / الإلغاء.
  */
