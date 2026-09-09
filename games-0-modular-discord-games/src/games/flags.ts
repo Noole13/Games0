@@ -133,8 +133,8 @@ export async function runFlagsGame(
     FLAG_ANSWER_MAP
   );
 
-  const winner = await waitForChannelMessage(
-    roundMessage.channel,
+const winner = await waitForChannelMessage(
+    interaction.channel!,
     (message: Message) => {
       if (message.author.bot) {
         return false;
