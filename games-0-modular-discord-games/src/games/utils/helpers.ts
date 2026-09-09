@@ -3,7 +3,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
-  ChannelSelectMenuBuilder,
   Message,
 } from "discord.js";
 import type { StringSelectMenuInteraction, ChatInputCommandInteraction } from "discord.js";
@@ -61,42 +60,34 @@ export function getUserName(
 }
 
 /**
- * التأكد أن العنصر Channel يدعم awaitMessages.
- */
-export function isMessagableChannel(
-  channel: unknown
-): channel is { awaitMessages: Function } {
-  return (
-    typeof channel === "object" &&
-    channel !== null &&
-    "awaitMessages" in channel &&
-    typeof (channel as any).awaitMessages === "function"
-  );
-}
-
-/**
- * انتظار رسالة من القناة.
+ * انتظار رسالة من القناة باستخدام الـ Collector المباشر لضمان الاستجابة.
  */
 export async function waitForChannelMessage(
-  channel: unknown,
+  channel: any,
   filter: (msg: Message) => boolean,
   timeout: number
 ): Promise<Message | undefined> {
-  if (!isMessagableChannel(channel)) {
+  if (!channel || typeof channel.createMessageCollector !== "function") {
     return undefined;
   }
 
-  try {
-    const messages = await channel.awaitMessages({
-      filter,
-      max: 1,
+  return new Promise((resolve) => {
+    const collector = channel.createMessageCollector({
+      filter: (msg: Message) => !msg.author.bot && filter(msg),
       time: timeout,
+      max: 1,
     });
 
-    return messages.first();
-  } catch {
-    return undefined;
-  }
+    collector.on("collect", (msg: Message) => {
+      resolve(msg);
+    });
+
+    collector.on("end", (collected: { size: number }) => {
+      if (collected.size === 0) {
+        resolve(undefined);
+      }
+    });
+  });
 }
 
 /**
