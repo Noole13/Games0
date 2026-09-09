@@ -77,30 +77,35 @@ export function isMessagableChannel(
 /**
  * انتظار رسالة من القناة.
  */
+/**
+ * انتظار رسالة من القناة.
+ */
 export async function waitForChannelMessage(
-  channel: unknown,
+  channel: any,
   filter: (msg: Message) => boolean,
   timeout: number
 ): Promise<Message | undefined> {
-  const messageable = isMessagableChannel(channel);
-
-  if (!messageable) {
+  if (!channel || typeof channel.awaitMessages !== "function") {
     return undefined;
   }
 
   try {
-    const messages = await (messageable as any).awaitMessages({
+    const messages = await channel.awaitMessages({
       filter,
       max: 1,
       time: timeout,
+      errors: ["time"],
     });
 
     return messages.first();
-  } catch {
+  } catch (collected: any) {
+    // في حال انتهى الوقت ولم يرسل أحد شيئاً، تُطلق discord.js خطأ يتم التقاطه هنا وإرجاع undefined بشكل طبيعي
+    if (collected && typeof collected.first === "function") {
+      return collected.first();
+    }
     return undefined;
   }
 }
-
 /**
  * أزرار الاستمرار / الإلغاء.
  */
