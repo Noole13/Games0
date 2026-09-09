@@ -3,6 +3,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
+  ChannelSelectMenuBuilder,
   Message,
 } from "discord.js";
 import type { StringSelectMenuInteraction, ChatInputCommandInteraction } from "discord.js";
@@ -60,40 +61,42 @@ export function getUserName(
 }
 
 /**
- * انتظار رسالة من القناة باستخدام حدث الرسائل العام (مضمون 100% في ديسكورد v14).
+ * التأكد أن العنصر Channel يدعم awaitMessages.
+ */
+export function isMessagableChannel(
+  channel: unknown
+): channel is { awaitMessages: Function } {
+  return (
+    typeof channel === "object" &&
+    channel !== null &&
+    "awaitMessages" in channel &&
+    typeof (channel as any).awaitMessages === "function"
+  );
+}
+
+/**
+ * انتظار رسالة من القناة.
  */
 export async function waitForChannelMessage(
-  channel: any,
+  channel: unknown,
   filter: (msg: Message) => boolean,
   timeout: number
 ): Promise<Message | undefined> {
-  const client = channel.client;
-  if (!client) {
+  if (!isMessagableChannel(channel)) {
     return undefined;
   }
 
-  return new Promise((resolve) => {
-    let timer: NodeJS.Timeout;
+  try {
+    const messages = await channel.awaitMessages({
+      filter,
+      max: 1,
+      time: timeout,
+    });
 
-    const listener = (message: Message) => {
-      // التأكد أن الرسالة في نفس القناة وليست من البوت
-      if (message.channelId !== channel.id) return;
-      if (message.author.bot) return;
-
-      if (filter(message)) {
-        clearTimeout(timer);
-        client.off("messageCreate", listener);
-        resolve(message);
-      }
-    };
-
-    client.on("messageCreate", listener);
-
-    timer = setTimeout(() => {
-      client.off("messageCreate", listener);
-      resolve(undefined);
-    }, timeout);
-  });
+    return messages.first();
+  } catch {
+    return undefined;
+  }
 }
 
 /**
