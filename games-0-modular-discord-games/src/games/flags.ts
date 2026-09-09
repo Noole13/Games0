@@ -8,106 +8,41 @@ import {
   getAllAcceptedAnswers,
   isCorrectAnswer,
 } from "./utils/normalizer";
-import {
-  COLORS,
-  waitForChannelMessage,
-  getUserInfo,
-  showContinuationButtons,
-} from "./utils/helpers";
+import { COLORS, showContinuationButtons } from "./utils/helpers";
 import { recordScore } from "../lib/leaderboard";
 import { logger } from "../lib/logger";
 
 const FLAG_ANSWER_MAP: Record<string, string[]> = {
-  السعودية: [
-    "السعودية",
-    "السعوديه",
-    "المملكة العربية السعودية",
-    "المملكه العربيه السعوديه",
-  ],
-  اليابان: ["اليابان"],
-  البرازيل: ["البرازيل"],
-  فرنسا: ["فرنسا"],
-  الإمارات: [
-    "الإمارات",
-    "الامارات",
-    "الإمارات العربية المتحدة",
-    "الامارات العربيه المتحده",
-  ],
-  الكويت: ["الكويت"],
-  قطر: ["قطر"],
-  البحرين: ["البحرين"],
-  عمان: ["عمان", "سلطنة عمان", "سلطنه عمان"],
-  مصر: ["مصر"],
-  الأردن: ["الأردن", "الاردن"],
-  لبنان: ["لبنان"],
-  سوريا: ["سوريا"],
   العراق: ["العراق"],
-  اليمن: ["اليمن"],
-  المغرب: ["المغرب"],
   الجزائر: ["الجزائر"],
-  تونس: ["تونس"],
-  ليبيا: ["ليبيا"],
-  السودان: ["السودان"],
-  أمريكا: ["أمريكا", "امريكا", "الولايات المتحدة", "الولايات المتحده"],
-  بريطانيا: [
-    "بريطانيا",
-    "المملكة المتحدة",
-    "المملكه المتحده",
-    "إنجلترا",
-    "انجلترا",
-  ],
-  ألمانيا: ["ألمانيا", "المانيا"],
-  إيطاليا: ["إيطاليا", "ايطاليا"],
-  إسبانيا: ["إسبانيا", "اسبانيا"],
+  سوريا: ["سوريا"],
+  اليمن: ["اليمن"],
+  لبنان: ["لبنان"],
   تركيا: ["تركيا"],
-  "كوريا الجنوبية": ["كوريا الجنوبية", "كوريا الجنوبيه"],
+  مصر: ["مصر"],
+  الإمارات: ["الإمارات", "الامارات"],
   الصين: ["الصين"],
-  الهند: ["الهند"],
-  الأرجنتين: ["الأرجنتين", "الارجنتين"],
-  كندا: ["كندا"],
-  أستراليا: ["أستراليا", "استراليا"],
+  فرنسا: ["فرنسا"],
+  المانيا: ["ألمانيا", "المانيا"],
+  روسيا: ["روسيا"],
+  اليابان: ["اليابان"],
+  البرتغال: ["البرتغال"],
+  كرواتيا: ["كرواتيا"],
+  فيتنام: ["فيتنام"],
+  تايوان: ["تايوان"],
+  إيطاليا: ["إيطاليا", "ايطاليا"],
+  السعودية: ["السعودية", "السعوديه", "المملكة العربية السعودية"],
 };
 
 function pickQuestion(): ChoiceQuestion | undefined {
   return flagQuestions[Math.floor(Math.random() * flagQuestions.length)];
 }
 
-function createQuestionEmbed(question: ChoiceQuestion, seconds: number) {
-  const acceptedAnswers = getAllAcceptedAnswers(
-    question.answer,
-    "flags",
-    FLAG_ANSWER_MAP
-  );
-
-  return new EmbedBuilder()
-    .setColor(COLORS.BRAND)
-    .setTitle("تخمين الأعلام")
-    .setDescription(
-      `${question.prompt}\n\nاكتب اسم الدولة في القناة.\n\n` +
-        `لديك **${seconds} ثوانٍ**، وأول إجابة صحيحة تفوز.`
-    )
-    .addFields({
-      name: "النقاط",
-      value: String(question.points ?? 10),
-      inline: true,
-    })
-    .setFooter({
-      text: "3RB Games • اكتب إجابتك في القناة",
-    })
-    .setImage(question.image ?? "")
-    .setFooter({
-      text: `3RB Games • ${acceptedAnswers.length} صيغة إجابة مقبولة`,
-    });
-}
-
-/**
- * تشغيل جولة الأعلام (ضبط الوقت على 15 ثانية).
- */
 export async function runFlagsGame(
   interaction: StringSelectMenuInteraction
 ): Promise<void> {
   const question = pickQuestion();
-  const seconds = 15; // تم تعديل الوقت هنا إلى 15 ثانية
+  const seconds = 15;
 
   if (!question) {
     await interaction.update({
@@ -118,80 +53,89 @@ export async function runFlagsGame(
     return;
   }
 
-  // تحديث رسالة القائمة فوراً وعرض السؤال دون أي تأخير مع جلب كائن الرسالة
-  await interaction.update({
-    embeds: [createQuestionEmbed(question, seconds)],
-    components: [],
-  });
-
   const acceptedAnswers = getAllAcceptedAnswers(
     question.answer,
     "flags",
     FLAG_ANSWER_MAP
   );
 
-  const winner = await waitForChannelMessage(
-    interaction.channel!,
-    (message: Message) => {
-      if (message.author.bot) {
-        return false;
-      }
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.BRAND)
+    .setTitle("تخمين الأعلام")
+    .setDescription(
+      `أي دولة تحمل هذا العلم؟\n\nاكتب اسم الدولة في القناة.\n\nلديك **${seconds} ثوانٍ**، وأول إجابة صحيحة تفوز.`
+    )
+    .addFields({
+      name: "النقاط",
+      value: String(question.points ?? 10),
+      inline: true,
+    })
+    .setImage(question.image ?? "")
+    .setFooter({
+      text: "3RB Games",
+    });
 
-      if (message.channelId !== interaction.channelId) {
-        return false;
-      }
+  await interaction.update({
+    embeds: [embed],
+    components: [],
+  });
 
-      return isCorrectAnswer(message.content, acceptedAnswers);
-    },
-    seconds * 1000
-  );
-
-  if (!winner) {
-    const timeoutEmbed = new EmbedBuilder()
-      .setColor(COLORS.ERROR)
-      .setTitle("انتهى الوقت")
-      .setDescription(
-        `لم يجب أحد خلال **${seconds} ثوانٍ**.\nالإجابة الصحيحة كانت: **${question.answer}**`
-      );
-
-    if (question.image) {
-      timeoutEmbed.setThumbnail(question.image);
-    }
-
-    await showContinuationButtons(interaction, timeoutEmbed);
+  const channel = interaction.channel;
+  if (!channel || !("createMessageCollector" in channel)) {
     return;
   }
 
-  const user = getUserInfo(winner);
-  const points = question.points ?? 10;
+  // استخدام طريقة Collector مباشرة وبسيطة مثل الكود القديم
+  const collector = channel.createMessageCollector({
+    filter: (m: Message) => !m.author.bot && isCorrectAnswer(m.content, acceptedAnswers),
+    time: seconds * 1000,
+    max: 1,
+  });
 
-  try {
-    await recordScore({
-      game: "flags",
-      userId: user.id,
-      username: user.name,
-      points,
-      detail: "إجابة صحيحة في لعبة الأعلام",
-    });
-  } catch (error) {
-    logger.error({ error, userId: user.id }, "Failed to record flags score");
-  }
+  collector.on("collect", async (msg: Message) => {
+    const points = question.points ?? 10;
+    const userId = msg.author.id;
+    const username = msg.author.globalName ?? msg.author.username;
 
-  const successEmbed = new EmbedBuilder()
-    .setColor(COLORS.SUCCESS)
-    .setTitle("إجابة صحيحة")
-    .setDescription(
-      `أجاب <@${winner.author.id}> بشكل صحيح وحصل على **${points} نقطة**.\nالإجابة: **${question.answer}**`
-    );
+    try {
+      await recordScore({
+        game: "flags",
+        userId,
+        username,
+        points,
+        detail: "إجابة صحيحة في لعبة الأعلام",
+      });
+    } catch (error) {
+      logger.error({ error }, "Failed to record score");
+    }
 
-  if (question.image) {
-    successEmbed.setThumbnail(question.image);
-  }
+    const successEmbed = new EmbedBuilder()
+      .setColor(COLORS.SUCCESS)
+      .setTitle("إجابة صحيحة")
+      .setDescription(`✅ | <@${userId}> الإجابة صحيحة وحصل على **${points} نقطة**!\nالإجابة: **${question.answer}**`);
 
-  await showContinuationButtons(interaction, successEmbed);
+    if (question.image) {
+      successEmbed.setThumbnail(question.image);
+    }
+
+    await showContinuationButtons(interaction, successEmbed);
+  });
+
+  collector.on("end", async (collected) => {
+    if (collected.size === 0) {
+      const timeoutEmbed = new EmbedBuilder()
+        .setColor(COLORS.ERROR)
+        .setTitle("انتهى الوقت")
+        .setDescription(`🕘 | انتهى الوقت ولم يقم أحد بالإجابة الصحيحة.\nالإجابة كانت: **${question.answer}**`);
+
+      if (question.image) {
+        timeoutEmbed.setThumbnail(question.image);
+      }
+
+      await showContinuationButtons(interaction, timeoutEmbed);
+    }
+  });
 }
-
-export { FLAG_ANSWER_MAP };
 
 const flagsGame = {
   id: "flags",
