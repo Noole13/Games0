@@ -1,34 +1,1903 @@
-{
-  "name": "3rb-games-discord-bot",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "node ./build.mjs",
-    "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
-  "dependencies": {
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "discord.js": "^14.27.0",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "firebase-admin": "^14.3.0",
-    "pino": "^10.3.1",
-    "pino-http": "^11.0.0"
-  },
-  "devDependencies": {
-    "@types/cookie-parser": "^1.4.10",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/node": "^24.0.0",
-    "esbuild": "^0.28.2",
-    "esbuild-plugin-pino": "^2.3.3",
-    "pino-pretty": "^13.1.3",
-    "thread-stream": "^4.2.0",
-    "tsx": "^4.23.13",
-    "typescript": "^5.7.3"
-  }
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    }
+});
+
+
+/* =========================================================
+   PATHS
+========================================================= */
+
+const PUBLIC_DIR = path.join(__dirname, '../public');
+const PICS_DIR = path.join(PUBLIC_DIR, 'pics');
+const CLIENT_DIR = path.join(__dirname, '../../client');
+
+
+/* =========================================================
+   STATIC FILES
+========================================================= */
+
+app.use(
+    '/pics',
+    express.static(PICS_DIR)
+);
+
+app.use(
+    express.static(CLIENT_DIR)
+);
+
+
+/* =========================================================
+   ROOM URL
+========================================================= */
+
+app.get('/room/:roomId', (req, res) => {
+
+    res.sendFile(
+        path.join(
+            CLIENT_DIR,
+            'index.html'
+        )
+    );
+
+});
+
+
+/* =========================================================
+   HOME
+========================================================= */
+
+app.get('/', (req, res) => {
+
+    res.sendFile(
+        path.join(
+            CLIENT_DIR,
+            'index.html'
+        )
+    );
+
+});
+
+
+/* =========================================================
+   ROOMS
+========================================================= */
+
+const rooms = {};
+
+
+/* =========================================================
+   GAME SETTINGS
+========================================================= */
+
+const DEFAULT_ROUND_TIME = 60;
+
+const MAX_MISTAKES = 5;
+
+const POINTS_PER_DIFFERENCE = 100;
+
+
+/* =========================================================
+   GET GAME IMAGES
+========================================================= */
+
+function getGameImages() {
+
+    if (!fs.existsSync(PICS_DIR)) {
+
+        console.log(
+            '⚠️ مجلد الصور غير موجود:',
+            PICS_DIR
+        );
+
+        return [];
+
+    }
+
+
+    const files =
+        fs.readdirSync(PICS_DIR)
+            .filter(file => {
+
+                return /\.(png|jpg|jpeg|webp)$/i.test(
+                    file
+                );
+
+            });
+
+
+    const images = [];
+
+
+    /*
+     * نبحث عن أزواج الصور:
+     *
+     * image1_orig.jpg
+     * image1_diff.jpg
+     *
+     * أو:
+     *
+     * image1.jpg
+     * image1_diff.jpg
+     */
+
+    const originals =
+        files.filter(file => {
+
+            return (
+                file.includes('_orig') ||
+                !file.includes('_diff')
+            );
+
+        });
+
+
+    originals.forEach(original => {
+
+        const baseName =
+            original
+                .replace(/\.[^/.]+$/, '')
+                .replace('_orig', '');
+
+
+        const extension =
+            path.extname(original);
+
+
+        /*
+         * البحث عن صورة الفرق.
+         */
+
+        let diff =
+            files.find(file => {
+
+                const fileBase =
+                    file.replace(
+                        /\.[^/.]+$/,
+                        ''
+                    );
+
+                return (
+                    fileBase === `${baseName}_diff`
+                );
+
+            });
+
+
+        /*
+         * إذا لم توجد _diff،
+         * نحاول إيجاد الزوج الآخر.
+         */
+
+        if (!diff) {
+
+            diff =
+                files.find(file => {
+
+                    return (
+                        file !== original &&
+                        file.startsWith(baseName)
+                    );
+
+                });
+
+        }
+
+
+        if (!diff) {
+            return;
+        }
+
+
+        /*
+         * ملاحظة:
+         *
+         * هذه الإحداثيات مجرد مثال.
+         *
+         * إذا كان لديك ملف يحتوي على
+         * إحداثيات الاختلافات الحقيقية،
+         * يجب ربطه هنا بدلاً منها.
+         */
+
+        images.push({
+
+            original,
+
+            diff,
+
+            differences: [
+
+                {
+                    id: 0,
+                    x: 150,
+                    y: 200,
+                    radius: 40
+                },
+
+                {
+                    id: 1,
+                    x: 300,
+                    y: 120,
+                    radius: 40
+                },
+
+                {
+                    id: 2,
+                    x: 220,
+                    y: 350,
+                    radius: 40
+                }
+
+            ]
+
+        });
+
+    });
+
+
+    console.log(
+        `🖼️ تم العثور على ${images.length} زوج صور`
+    );
+
+
+    return images;
 }
+
+
+/* =========================================================
+   CREATE ROOM ID
+========================================================= */
+
+function generateRoomId() {
+
+    let roomId;
+
+    do {
+
+        roomId =
+            'ROOM-' +
+            Math.random()
+                .toString(36)
+                .substring(2, 8)
+                .toUpperCase();
+
+    } while (rooms[roomId]);
+
+
+    return roomId;
+}
+
+
+/* =========================================================
+   SEND PLAYERS
+========================================================= */
+
+function broadcastPlayers(roomId) {
+
+    const room = rooms[roomId];
+
+    if (!room) {
+        return;
+    }
+
+
+    io.to(roomId).emit(
+        'update-players',
+        {
+            players: room.players.map(player => {
+
+                return {
+
+                    id: player.id,
+
+                    name: player.name,
+
+                    score: player.score,
+
+                    isHost:
+                        player.id === room.hostId
+
+                };
+
+            })
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   RESET PLAYER ROUND DATA
+========================================================= */
+
+function resetPlayersForRound(room) {
+
+    room.playerStates = {};
+
+
+    room.players.forEach(player => {
+
+        room.playerStates[player.id] = {
+
+            mistakes: 0,
+
+            locked: false,
+
+            foundDifferences: []
+
+        };
+
+    });
+
+}
+
+
+/* =========================================================
+   START NEW ROUND
+========================================================= */
+
+function startNewRound(roomId) {
+
+    const room =
+        rooms[roomId];
+
+
+    if (!room) {
+        return;
+    }
+
+
+    /*
+     * إذا انتهت كل المراحل.
+     */
+
+    if (
+        room.currentRound >
+        room.totalRounds
+    ) {
+
+        endGame(roomId);
+
+        return;
+    }
+
+
+    /*
+     * يجب أن تكون هناك صور.
+     */
+
+    if (
+        !room.images ||
+        room.images.length === 0
+    ) {
+
+        io.to(roomId).emit(
+            'error-msg',
+            {
+                message:
+                    '❌ لا توجد صور للعبة داخل مجلد pics.'
+            }
+        );
+
+        room.gameState = 'lobby';
+
+        return;
+    }
+
+
+    /*
+     * اختيار صورة المرحلة.
+     */
+
+    const imageIndex =
+        (
+            room.currentRound - 1
+        ) %
+        room.images.length;
+
+
+    const imagePair =
+        room.images[imageIndex];
+
+
+    room.currentImagePair =
+        imagePair;
+
+
+    /*
+     * تصفير حالة المرحلة.
+     */
+
+    room.remainingTime =
+        DEFAULT_ROUND_TIME;
+
+
+    room.currentRoundStartedAt =
+        Date.now();
+
+
+    room.currentRoundEndsAt =
+        Date.now() +
+        DEFAULT_ROUND_TIME * 1000;
+
+
+    resetPlayersForRound(room);
+
+
+    /*
+     * إلغاء المؤقت السابق إن وجد.
+     */
+
+    if (room.timer) {
+
+        clearInterval(
+            room.timer
+        );
+
+        room.timer = null;
+
+    }
+
+
+    /*
+     * إرسال نفس المرحلة لجميع اللاعبين.
+     */
+
+    io.to(roomId).emit(
+        'start-round',
+        {
+
+            currentRound:
+                room.currentRound,
+
+            totalRounds:
+                room.totalRounds,
+
+            imageOriginal:
+                imagePair.original,
+
+            imageDiff:
+                imagePair.diff,
+
+            totalDifferences:
+                imagePair.differences.length,
+
+            roundTime:
+                DEFAULT_ROUND_TIME,
+
+            remainingTime:
+                DEFAULT_ROUND_TIME
+
+        }
+    );
+
+
+    /*
+     * المؤقت مركزي من السيرفر.
+     *
+     * لا يزيد الوقت عند اكتشاف الفرق.
+     */
+
+    room.timer =
+        setInterval(() => {
+
+            const now =
+                Date.now();
+
+
+            const remaining =
+                Math.max(
+                    0,
+                    Math.ceil(
+                        (
+                            room.currentRoundEndsAt -
+                            now
+                        ) / 1000
+                    )
+                );
+
+
+            room.remainingTime =
+                remaining;
+
+
+            io.to(roomId).emit(
+                'timer-update',
+                {
+                    remainingTime:
+                        remaining
+                }
+            );
+
+
+            /*
+             * انتهى الوقت.
+             */
+
+            if (remaining <= 0) {
+
+                clearInterval(
+                    room.timer
+                );
+
+                room.timer = null;
+
+
+                finishRoundByTime(
+                    roomId
+                );
+
+            }
+
+        }, 250);
+
+}
+
+
+/* =========================================================
+   FINISH ROUND BY TIME
+========================================================= */
+
+function finishRoundByTime(roomId) {
+
+    const room =
+        rooms[roomId];
+
+
+    if (!room) {
+        return;
+    }
+
+
+    /*
+     * منع تكرار إنهاء المرحلة.
+     */
+
+    if (
+        room.gameState !== 'playing'
+    ) {
+        return;
+    }
+
+
+    room.roundFinishing = true;
+
+
+    io.to(roomId).emit(
+        'round-completed',
+        {
+            message:
+                '⏰ انتهى وقت هذه المرحلة!'
+        }
+    );
+
+
+    setTimeout(() => {
+
+        if (!rooms[roomId]) {
+            return;
+        }
+
+
+        const currentRoom =
+            rooms[roomId];
+
+
+        currentRoom.roundFinishing =
+            false;
+
+
+        currentRoom.currentRound++;
+
+
+        if (
+            currentRoom.currentRound >
+            currentRoom.totalRounds
+        ) {
+
+            endGame(roomId);
+
+            return;
+        }
+
+
+        startNewRound(
+            roomId
+        );
+
+    }, 3000);
+
+}
+
+
+/* =========================================================
+   FINISH ROUND WHEN ALL DIFFERENCES FOUND
+========================================================= */
+
+function finishRoundByAllDifferences(
+    roomId
+) {
+
+    const room =
+        rooms[roomId];
+
+
+    if (!room) {
+        return;
+    }
+
+
+    if (
+        room.roundFinishing
+    ) {
+        return;
+    }
+
+
+    room.roundFinishing =
+        true;
+
+
+    if (room.timer) {
+
+        clearInterval(
+            room.timer
+        );
+
+        room.timer = null;
+
+    }
+
+
+    /*
+     * مهم:
+     *
+     * انتهاء المرحلة لا يزيد الوقت.
+     * فقط ننتقل بعد فترة قصيرة.
+     */
+
+    io.to(roomId).emit(
+        'round-completed',
+        {
+            message:
+                '🏆 رائع! تم العثور على جميع الفروق!'
+        }
+    );
+
+
+    setTimeout(() => {
+
+        if (!rooms[roomId]) {
+            return;
+        }
+
+
+        const currentRoom =
+            rooms[roomId];
+
+
+        currentRoom.roundFinishing =
+            false;
+
+
+        currentRoom.currentRound++;
+
+
+        if (
+            currentRoom.currentRound >
+            currentRoom.totalRounds
+        ) {
+
+            endGame(roomId);
+
+            return;
+        }
+
+
+        startNewRound(
+            roomId
+        );
+
+    }, 3000);
+
+}
+
+
+/* =========================================================
+   CREATE ROOM
+========================================================= */
+
+io.on(
+    'connection',
+    socket => {
+
+        console.log(
+            `👤 مستخدم متصل: ${socket.id}`
+        );
+
+
+        /*
+         * =========================================
+         * CREATE ROOM
+         * =========================================
+         */
+
+        socket.on(
+            'create-room',
+            data => {
+
+                try {
+
+                    const playerName =
+                        String(
+                            data?.playerName || ''
+                        ).trim();
+
+
+                    if (!playerName) {
+
+                        socket.emit(
+                            'error-msg',
+                            {
+                                message:
+                                    '❌ يجب كتابة اسمك أولاً.'
+                            }
+                        );
+
+                        return;
+                    }
+
+
+                    const totalRounds =
+                        Math.max(
+                            1,
+                            Math.min(
+                                20,
+                                parseInt(
+                                    data?.totalRounds
+                                ) || 6
+                            )
+                        );
+
+
+                    /*
+                     * الوقت ثابت 60 ثانية.
+                     */
+
+                    const roundTime =
+                        DEFAULT_ROUND_TIME;
+
+
+                    const roomId =
+                        generateRoomId();
+
+
+                    const images =
+                        getGameImages();
+
+
+                    /*
+                     * إنشاء الجلسة.
+                     */
+
+                    rooms[roomId] = {
+
+                        roomId,
+
+                        hostId:
+                            socket.id,
+
+                        totalRounds,
+
+                        roundTime,
+
+                        players: [
+
+                            {
+
+                                id:
+                                    socket.id,
+
+                                name:
+                                    playerName,
+
+                                score:
+                                    0
+
+                            }
+
+                        ],
+
+                        currentRound:
+                            0,
+
+                        currentImagePair:
+                            null,
+
+                        gameState:
+                            'lobby',
+
+                        timer:
+                            null,
+
+                        remainingTime:
+                            roundTime,
+
+                        currentRoundStartedAt:
+                            null,
+
+                        currentRoundEndsAt:
+                            null,
+
+                        roundFinishing:
+                            false,
+
+                        images,
+
+                        playerStates:
+                            {}
+
+                    };
+
+
+                    /*
+                     * دخول الـ Host للغرفة.
+                     */
+
+                    socket.join(
+                        roomId
+                    );
+
+
+                    /*
+                     * إرسال ID اللاعب أيضاً.
+                     */
+
+                    socket.emit(
+                        'room-created',
+                        {
+
+                            roomId,
+
+                            playerId:
+                                socket.id
+
+                        }
+                    );
+
+
+                    /*
+                     * إرسال اللاعبين.
+                     */
+
+                    broadcastPlayers(
+                        roomId
+                    );
+
+
+                    console.log(
+                        `🏠 تم إنشاء الجلسة ${roomId} بواسطة ${playerName}`
+                    );
+
+                }
+
+                catch (error) {
+
+                    console.error(
+                        'CREATE ROOM ERROR:',
+                        error
+                    );
+
+
+                    socket.emit(
+                        'error-msg',
+                        {
+                            message:
+                                '❌ حدث خطأ أثناء إنشاء الجلسة.'
+                        }
+                    );
+
+                }
+
+            }
+        );
+
+
+        /*
+         * =========================================
+         * JOIN ROOM
+         * =========================================
+         */
+
+        socket.on(
+            'join-room',
+            data => {
+
+                try {
+
+                    const roomId =
+                        String(
+                            data?.roomId || ''
+                        )
+                            .trim()
+                            .toUpperCase();
+
+
+                    const playerName =
+                        String(
+                            data?.playerName || ''
+                        ).trim();
+
+
+                    if (!playerName) {
+
+                        socket.emit(
+                            'error-msg',
+                            {
+                                message:
+                                    '❌ يجب كتابة اسمك أولاً.'
+                            }
+                        );
+
+                        return;
+                    }
+
+
+                    if (!roomId) {
+
+                        socket.emit(
+                            'error-msg',
+                            {
+                                message:
+                                    '❌ رابط الجلسة غير صحيح.'
+                            }
+                        );
+
+                        return;
+                    }
+
+
+                    const room =
+                        rooms[roomId];
+
+
+                    if (!room) {
+
+                        socket.emit(
+                            'error-msg',
+                            {
+                                message:
+                                    '❌ هذه الجلسة غير موجودة أو انتهت.'
+                            }
+                        );
+
+                        return;
+                    }
+
+
+                    /*
+                     * لا يسمح بالانضمام بعد بدء اللعبة.
+                     */
+
+                    if (
+                        room.gameState !==
+                        'lobby'
+                    ) {
+
+                        socket.emit(
+                            'error-msg',
+                            {
+                                message:
+                                    '⚠️ اللعبة بدأت بالفعل، لا يمكن الانضمام الآن.'
+                            }
+                        );
+
+                        return;
+                    }
+
+
+                    /*
+                     * حد أقصى احتياطي للاعبين.
+                     */
+
+                    if (
+                        room.players.length >= 20
+                    ) {
+
+                        socket.emit(
+                            'error-msg',
+                            {
+                                message:
+                                    '❌ الجلسة ممتلئة.'
+                            }
+                        );
+
+                        return;
+                    }
+
+
+                    /*
+                     * منع الاسم الفارغ.
+                     */
+
+                    const duplicateName =
+                        room.players.some(
+                            player =>
+                                player.name
+                                    .toLowerCase() ===
+                                playerName
+                                    .toLowerCase()
+                        );
+
+
+                    if (duplicateName) {
+
+                        socket.emit(
+                            'error-msg',
+                            {
+                                message:
+                                    '❌ هذا الاسم مستخدم بالفعل في الجلسة.'
+                            }
+                        );
+
+                        return;
+                    }
+
+
+                    room.players.push({
+
+                        id:
+                            socket.id,
+
+                        name:
+                            playerName,
+
+                        score:
+                            0
+
+                    });
+
+
+                    socket.join(
+                        roomId
+                    );
+
+
+                    socket.emit(
+                        'room-joined',
+                        {
+
+                            roomId,
+
+                            playerId:
+                                socket.id
+
+                        }
+                    );
+
+
+                    broadcastPlayers(
+                        roomId
+                    );
+
+
+                    console.log(
+                        `👤 ${playerName} انضم إلى ${roomId}`
+                    );
+
+                }
+
+                catch (error) {
+
+                    console.error(
+                        'JOIN ROOM ERROR:',
+                        error
+                    );
+
+
+                    socket.emit(
+                        'error-msg',
+                        {
+                            message:
+                                '❌ حدث خطأ أثناء الانضمام للجلسة.'
+                        }
+                    );
+
+                }
+
+            }
+        );
+
+
+        /*
+         * =========================================
+         * START GAME
+         * =========================================
+         */
+
+        socket.on(
+            'start-game',
+            data => {
+
+                const room =
+                    rooms[data?.roomId];
+
+
+                if (!room) {
+                    return;
+                }
+
+
+                /*
+                 * الـ Host فقط يستطيع البدء.
+                 */
+
+                if (
+                    room.hostId !==
+                    socket.id
+                ) {
+
+                    socket.emit(
+                        'error-msg',
+                        {
+                            message:
+                                '❌ منشئ الجلسة فقط يستطيع بدء اللعبة.'
+                        }
+                    );
+
+                    return;
+                }
+
+
+                if (
+                    room.gameState !==
+                    'lobby'
+                ) {
+                    return;
+                }
+
+
+                if (
+                    room.players.length === 0
+                ) {
+                    return;
+                }
+
+
+                room.currentRound =
+                    1;
+
+
+                room.gameState =
+                    'playing';
+
+
+                startNewRound(
+                    room.roomId
+                );
+
+            }
+        );
+
+
+        /*
+         * =========================================
+         * CLICK SPOT
+         * =========================================
+         */
+
+        socket.on(
+            'click-spot',
+            data => {
+
+                const room =
+                    rooms[data?.roomId];
+
+
+                if (!room) {
+                    return;
+                }
+
+
+                /*
+                 * لا يسمح بالنقر خارج اللعب.
+                 */
+
+                if (
+                    room.gameState !==
+                    'playing'
+                ) {
+                    return;
+                }
+
+
+                /*
+                 * لا يسمح بالنقر أثناء
+                 * الانتقال بين المراحل.
+                 */
+
+                if (
+                    room.roundFinishing
+                ) {
+                    return;
+                }
+
+
+                /*
+                 * التحقق من أن اللاعب موجود.
+                 */
+
+                const player =
+                    room.players.find(
+                        p =>
+                            p.id ===
+                            socket.id
+                    );
+
+
+                if (!player) {
+                    return;
+                }
+
+
+                /*
+                 * حالة اللاعب الحالية.
+                 */
+
+                if (
+                    !room.playerStates[
+                        socket.id
+                    ]
+                ) {
+
+                    room.playerStates[
+                        socket.id
+                    ] = {
+
+                        mistakes: 0,
+
+                        locked: false,
+
+                        foundDifferences: []
+
+                    };
+
+                }
+
+
+                const playerState =
+                    room.playerStates[
+                        socket.id
+                    ];
+
+
+                /*
+                 * إذا استنفد 5 أخطاء،
+                 * لا يستطيع الاختيار.
+                 */
+
+                if (
+                    playerState.locked ||
+                    playerState.mistakes >=
+                        MAX_MISTAKES
+                ) {
+
+                    playerState.locked =
+                        true;
+
+
+                    socket.emit(
+                        'spot-result',
+                        {
+
+                            success:
+                                false,
+
+                            locked:
+                                true,
+
+                            mistakes:
+                                playerState.mistakes,
+
+                            message:
+                                '🔒 لقد استنفدت جميع محاولاتك في هذه المرحلة!'
+
+                        }
+                    );
+
+                    return;
+                }
+
+
+                /*
+                 * التحقق من البيانات.
+                 */
+
+                const x =
+                    Number(data?.x);
+
+
+                const y =
+                    Number(data?.y);
+
+
+                if (
+                    !Number.isFinite(x) ||
+                    !Number.isFinite(y)
+                ) {
+
+                    return;
+                }
+
+
+                const imagePair =
+                    room.currentImagePair;
+
+
+                if (!imagePair) {
+                    return;
+                }
+
+
+                /*
+                 * البحث عن الفرق.
+                 *
+                 * كل فرق له ID خاص.
+                 */
+
+                let clickedDifference =
+                    null;
+
+
+                for (
+                    const difference
+                    of imagePair.differences
+                ) {
+
+                    const alreadyFound =
+                        playerState
+                            .foundDifferences
+                            .includes(
+                                difference.id
+                            );
+
+
+                    if (
+                        alreadyFound
+                    ) {
+                        continue;
+                    }
+
+
+                    const distance =
+                        Math.hypot(
+                            x -
+                                difference.x,
+
+                            y -
+                                difference.y
+                        );
+
+
+                    if (
+                        distance <=
+                        difference.radius
+                    ) {
+
+                        clickedDifference =
+                            difference;
+
+                        break;
+
+                    }
+
+                }
+
+
+                /*
+                 * =========================================
+                 * CORRECT
+                 * =========================================
+                 */
+
+                if (
+                    clickedDifference
+                ) {
+
+                    playerState
+                        .foundDifferences
+                        .push(
+                            clickedDifference.id
+                        );
+
+
+                    /*
+                     * +100 فقط.
+                     */
+
+                    player.score +=
+                        POINTS_PER_DIFFERENCE;
+
+
+                    const totalDifferences =
+                        imagePair
+                            .differences
+                            .length;
+
+
+                    const remaining =
+                        totalDifferences -
+                        playerState
+                            .foundDifferences
+                            .length;
+
+
+                    socket.emit(
+                        'spot-result',
+                        {
+
+                            success:
+                                true,
+
+                            differenceId:
+                                clickedDifference.id,
+
+                            message:
+                                `✨ ممتاز يا ${player.name}! وجدت فرقاً صحيحاً (+${POINTS_PER_DIFFERENCE} نقطة)`,
+
+                            x:
+                                clickedDifference.x,
+
+                            y:
+                                clickedDifference.y,
+
+                            remaining,
+
+                            totalScore:
+                                player.score
+
+                        }
+                    );
+
+
+                    /*
+                     * إذا وجد هذا اللاعب جميع
+                     * اختلافات المرحلة.
+                     *
+                     * المرحلة تنتهي للجميع.
+                     */
+
+                    if (
+                        remaining === 0
+                    ) {
+
+                        finishRoundByAllDifferences(
+                            room.roomId
+                        );
+
+                    }
+
+
+                    return;
+                }
+
+
+                /*
+                 * =========================================
+                 * WRONG
+                 * =========================================
+                 */
+
+                playerState.mistakes++;
+
+
+                if (
+                    playerState.mistakes >=
+                    MAX_MISTAKES
+                ) {
+
+                    playerState.locked =
+                        true;
+
+                }
+
+
+                socket.emit(
+                    'spot-result',
+                    {
+
+                        success:
+                            false,
+
+                        mistakes:
+                            playerState.mistakes,
+
+                        locked:
+                            playerState.locked,
+
+                        message:
+                            playerState.locked
+
+                                ? '🔒 لقد استنفدت جميع محاولاتك في هذه المرحلة!'
+
+                                : `❌ خطأ! (${playerState.mistakes}/${MAX_MISTAKES} محاولات خاطئة)`
+
+                    }
+                );
+
+            }
+        );
+
+
+        /*
+         * =========================================
+         * END GAME
+         * =========================================
+         */
+
+        function endGame(roomId) {
+
+            const room =
+                rooms[roomId];
+
+
+            if (!room) {
+                return;
+            }
+
+
+            room.gameState =
+                'results';
+
+
+            room.roundFinishing =
+                false;
+
+
+            if (room.timer) {
+
+                clearInterval(
+                    room.timer
+                );
+
+                room.timer = null;
+
+            }
+
+
+            /*
+             * ترتيب اللاعبين حسب مجموع النقاط.
+             */
+
+            const leaderboard =
+                [...room.players]
+                    .sort(
+                        (a, b) =>
+                            b.score -
+                            a.score
+                    )
+                    .map(
+                        player => ({
+
+                            id:
+                                player.id,
+
+                            name:
+                                player.name,
+
+                            totalScore:
+                                player.score
+
+                        })
+                    );
+
+
+            io.to(roomId).emit(
+                'game-over',
+                {
+                    leaderboard
+                }
+            );
+
+
+            console.log(
+                `🏁 انتهت اللعبة ${roomId}`
+            );
+
+        }
+
+
+        /*
+         * =========================================
+         * RESTART GAME
+         * =========================================
+         */
+
+        socket.on(
+            'restart-game',
+            data => {
+
+                const room =
+                    rooms[data?.roomId];
+
+
+                if (!room) {
+                    return;
+                }
+
+
+                /*
+                 * Host فقط.
+                 */
+
+                if (
+                    room.hostId !==
+                    socket.id
+                ) {
+                    return;
+                }
+
+
+                if (room.timer) {
+
+                    clearInterval(
+                        room.timer
+                    );
+
+                    room.timer = null;
+
+                }
+
+
+                room.gameState =
+                    'lobby';
+
+
+                room.currentRound =
+                    0;
+
+
+                room.currentImagePair =
+                    null;
+
+
+                room.remainingTime =
+                    DEFAULT_ROUND_TIME;
+
+
+                room.roundFinishing =
+                    false;
+
+
+                room.players.forEach(
+                    player => {
+
+                        player.score =
+                            0;
+
+                    }
+                );
+
+
+                room.playerStates =
+                    {};
+
+
+                io.to(room.roomId).emit(
+                    'returned-to-lobby',
+                    {}
+                );
+
+
+                broadcastPlayers(
+                    room.roomId
+                );
+
+
+                console.log(
+                    `🔄 تم إعادة جلسة ${room.roomId} إلى الانتظار`
+                );
+
+            }
+        );
+
+
+        /*
+         * =========================================
+         * RECONNECT PLAYER
+         * =========================================
+         */
+
+        socket.on(
+            'reconnect-player',
+            data => {
+
+                /*
+                 * هذا الحدث موجود حتى لا يظهر خطأ
+                 * في الـ Frontend عند إعادة الاتصال.
+                 *
+                 * في هذا النظام البسيط،
+                 * socket.id يتغير عند إعادة الاتصال،
+                 * لذلك لا يتم نقل الجلسة تلقائياً.
+                 */
+
+            }
+        );
+
+
+        /*
+         * =========================================
+         * DISCONNECT
+         * =========================================
+         */
+
+        socket.on(
+            'disconnect',
+            () => {
+
+                console.log(
+                    `❌ انقطع اتصال المستخدم: ${socket.id}`
+                );
+
+
+                for (
+                    const roomId
+                    in rooms
+                ) {
+
+                    const room =
+                        rooms[roomId];
+
+
+                    const playerIndex =
+                        room.players.findIndex(
+                            player =>
+                                player.id ===
+                                socket.id
+                        );
+
+
+                    if (
+                        playerIndex === -1
+                    ) {
+                        continue;
+                    }
+
+
+                    const wasHost =
+                        room.hostId ===
+                        socket.id;
+
+
+                    /*
+                     * إزالة اللاعب.
+                     */
+
+                    room.players.splice(
+                        playerIndex,
+                        1
+                    );
+
+
+                    delete room.playerStates[
+                        socket.id
+                    ];
+
+
+                    /*
+                     * إذا لم يبق أحد،
+                     * نحذف الجلسة.
+                     */
+
+                    if (
+                        room.players.length === 0
+                    ) {
+
+                        if (room.timer) {
+
+                            clearInterval(
+                                room.timer
+                            );
+
+                        }
+
+
+                        delete rooms[
+                            roomId
+                        ];
+
+
+                        console.log(
+                            `🗑️ تم حذف الجلسة ${roomId} لأنها أصبحت فارغة`
+                        );
+
+                        break;
+                    }
+
+
+                    /*
+                     * إذا خرج الـ Host:
+                     *
+                     * ينتقل دور الـ Host
+                     * لأول لاعب موجود.
+                     */
+
+                    if (
+                        wasHost
+                    ) {
+
+                        room.hostId =
+                            room.players[0].id;
+
+
+                        io.to(roomId).emit(
+                            'host-changed',
+                            {
+                                hostId:
+                                    room.hostId
+                            }
+                        );
+
+                    }
+
+
+                    broadcastPlayers(
+                        roomId
+                    );
+
+
+                    break;
+
+                }
+
+            }
+        );
+
+    }
+);
+
+
+/* =========================================================
+   SERVER
+========================================================= */
+
+const PORT =
+    process.env.PORT ||
+    5003;
+
+
+server.listen(
+    PORT,
+    () => {
+
+        console.log(
+            `🚀 السيرفر يعمل بنجاح على المنفذ ${PORT}`
+        );
+
+        console.log(
+            `📁 الصور: ${PICS_DIR}`
+        );
+
+        console.log(
+            `📁 الواجهة: ${CLIENT_DIR}`
+        );
+
+    }
+);
